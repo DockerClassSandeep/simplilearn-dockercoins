@@ -1,26 +1,75 @@
 # simplilearn-dockercoins
-GITHUB_USERNAME=dockerclasssandeep GITHUB_PROJECT=simplilearn-phpinfo GITHUB_BRANCH=2021-08 GITHUB_RELEASE=single-line NODEPORT=80
+GITHUB_USERNAME=dockerclasssandeep 
+GITHUB_PROJECT=simplilearn-dockercoins
+GITHUB_BRANCH=2021-08
+GITHUB_RELEASE=test
+NODEPORT=80
 
-cd ${HOME} git clone https://github.com/${GITHUB_USERNAME}/${GITHUB_PROJECT} cd ${GITHUB_PROJECT} git pull git checkout ${GITHUB_BRANCH}
+cd ${HOME}
+git clone https://github.com/${GITHUB_USERNAME}/${GITHUB_PROJECT}
+cd ${GITHUB_PROJECT}
+git pull
+git checkout ${GITHUB_BRANCH}
 
-sudo docker image build --file Dockerfile-${GITHUB_RELEASE} --tag ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE} ./ sudo docker container run --cpus 0.050 --detach --entrypoint /usr/bin/php --memory 10M --name ${GITHUB_PROJECT}_${GITHUB_RELEASE} --publish ${NODEPORT}:8080 --read-only --rm --user nobody --volume ${PWD}/src/:/src/:ro --workdir /src/ ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE} -f index.php -S 0.0.0.0:8080
+SERVICE=hasher
+sudo docker image build --file ${SERVICE}/Dockerfile --tag ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE}-${SERVICE} ${SERVICE}/
 
-sudo docker container logs ${GITHUB_PROJECT}${GITHUB_RELEASE} sudo docker container top ${GITHUB_PROJECT}${GITHUB_RELEASE} sudo docker container stats --no-stream ${GITHUB_PROJECT}_${GITHUB_RELEASE}
+SERVICE=rng
+sudo docker image build --file ${SERVICE}/Dockerfile --tag ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE}-${SERVICE} ${SERVICE}/
 
-GITHUB_RELEASE=no-volume NODEPORT=81
+SERVICE=webui
+sudo docker image build --file ${SERVICE}/Dockerfile --tag ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE}-${SERVICE} ${SERVICE}/
 
-sudo docker image build --file Dockerfile-${GITHUB_RELEASE} --tag ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE} ./ sudo docker container run --cpus 0.050 --detach --entrypoint /usr/bin/php --memory 10M --name ${GITHUB_PROJECT}_${GITHUB_RELEASE} --publish ${NODEPORT}:8080 --read-only --rm --user nobody --workdir /src/ ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE} -f index.php -S 0.0.0.0:8080
+SERVICE=worker
+sudo docker image build --file ${SERVICE}/Dockerfile --tag ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE}-${SERVICE} ${SERVICE}/
 
-sudo docker container logs ${GITHUB_PROJECT}${GITHUB_RELEASE} sudo docker container top ${GITHUB_PROJECT}${GITHUB_RELEASE} sudo docker container stats --no-stream ${GITHUB_PROJECT}_${GITHUB_RELEASE}
+SERVICE=hasher
+sudo docker network create ${SERVICE}
 
-GITHUB_RELEASE=metadata NODEPORT=82
+SERVICE=redis
+sudo docker network create ${SERVICE}
 
-sudo docker image build --file Dockerfile-${GITHUB_RELEASE} --tag ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE} ./ sudo docker container run --cpus 0.050 --detach --memory 10M --name ${GITHUB_PROJECT}_${GITHUB_RELEASE} --publish ${NODEPORT}:8080 --read-only --rm --volume ${PWD}/src/:/src/:ro ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE}
+SERVICE=rng
+sudo docker network create ${SERVICE}
 
-sudo docker container logs ${GITHUB_PROJECT}${GITHUB_RELEASE} sudo docker container top ${GITHUB_PROJECT}${GITHUB_RELEASE} sudo docker container stats --no-stream ${GITHUB_PROJECT}_${GITHUB_RELEASE}
+CMD=redis-server
+ENTRYPOINT=docker-entrypoint.sh
+SERVICE=redis
+NETWORK=${SERVICE}
+WORKDIR=/data/
+sudo docker volume create ${SERVICE}
+sudo docker container run --detach --entrypoint ${ENTRYPOINT} --name ${SERVICE} --network ${NETWORK} --restart always --volume ${SERVICE}:${WORKDIR}:rw --workdir ${WORKDIR} ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE}-${SERVICE} ${CMD}
 
-GITHUB_RELEASE=no-volume-metadata NODEPORT=83
+CMD=hasher.rb
+ENTRYPOINT=ruby
+SERVICE=hasher
+NETWORK=${SERVICE}
+WORKDIR=/${SERVICE}/
+sudo docker container run --detach --entrypoint ${ENTRYPOINT} --name ${SERVICE} --network ${NETWORK} --restart always --volume ${SERVICE}/:${WORKDIR}:ro --workdir ${WORKDIR} ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE}-${SERVICE} ${CMD}
 
-sudo docker image build --file Dockerfile-${GITHUB_RELEASE} --tag ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE} ./ sudo docker container run --cpus 0.050 --detach --memory 10M --name ${GITHUB_PROJECT}_${GITHUB_RELEASE} --publish ${NODEPORT}:8080 --read-only --rm ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE}
+CMD=rng.py
+ENTRYPOINT=python
+SERVICE=rng
+NETWORK=${SERVICE}
+WORKDIR=/${SERVICE}/
+sudo docker container run --detach --entrypoint ${ENTRYPOINT} --name ${SERVICE} --network ${NETWORK} --restart always --volume ${SERVICE}/:${WORKDIR}:ro --workdir ${WORKDIR} ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE}-${SERVICE} ${CMD}
 
-sudo docker container logs ${GITHUB_PROJECT}${GITHUB_RELEASE} sudo docker container top ${GITHUB_PROJECT}${GITHUB_RELEASE} sudo docker container stats --no-stream ${GITHUB_PROJECT}_${GITHUB_RELEASE}
+CMD=worker.py
+ENTRYPOINT=python
+SERVICE=worker
+NETWORK=redis
+WORKDIR=/${SERVICE}/
+sudo docker container run --detach --entrypoint ${ENTRYPOINT} --name ${SERVICE} --network ${NETWORK} --restart always --volume ${SERVICE}/:${WORKDIR}:ro --workdir ${WORKDIR} ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE}-${SERVICE} ${CMD}
+
+NETWORK=hasher
+sudo docker network connect ${NETWORK} ${SERVICE}
+
+NETWORK=rng
+sudo docker network connect ${NETWORK} ${SERVICE}
+
+CMD=webui.js
+ENTRYPOINT=node
+SERVICE=webui
+NETWORK=redis
+WORKDIR=/${SERVICE}/
+sudo docker container run --detach --entrypoint ${ENTRYPOINT} --name ${SERVICE} --network ${NETWORK} --publish ${NODEPORT}:8080--restart always --volume ${SERVICE}/:${WORKDIR}:ro --workdir ${WORKDIR} ${GITHUB_USERNAME}/${GITHUB_PROJECT}:${GITHUB_RELEASE}-${SERVICE} ${CMD}
