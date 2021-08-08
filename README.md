@@ -1,5 +1,4 @@
 # simplilearn-dockercoins
-HOME = simplilearn-dockercoins
 GITHUB_USERNAME=dockerclasssandeep 
 GITHUB_PROJECT=simplilearn-dockercoins
 GITHUB_BRANCH=2021-08
